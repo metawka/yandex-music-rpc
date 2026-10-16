@@ -1,0 +1,41 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          if ($version -notmatch '^\d') { $version = "0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\setup.iss
+          Copy-Item target\release\yandex-music-rpc.exe dist\YandexMusicRPC.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YandexMusicRPC
+          path: dist/*
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/YandexMusicRPC-Setup.exe
+            dist/YandexMusicRPC.exe
